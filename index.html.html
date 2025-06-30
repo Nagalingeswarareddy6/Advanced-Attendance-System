@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Attendance System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <style>
+        .video-container {
+            position: relative;
+            width: 100%;
+            height: 0;
+            padding-bottom: 56.25%;
+            background-color: #000;
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+        
+        .video-container video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .scan-animation {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: linear-gradient(90deg, rgba(0,255,0,0), rgba(0,255,0,0.8), rgba(0,255,0,0));
+            animation: scan 2s linear infinite;
+            box-shadow: 0 0 10px rgba(0,255,0,0.5);
+        }
+        
+        @keyframes scan {
+            0% { top: 0; }
+            100% { top: 100%; }
+        }
+        
+        .face-overlay {
+            position: absolute;
+            border: 2px solid #3B82F6;
+            border-radius: 0.5rem;
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+            transition: all 0.3s ease;
+        }
+        
+        .attendance-record {
+            animation: fadeIn 0.5s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+            <!-- Header -->
+            <div class="bg-blue-600 text-white p-6">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h1 class="text-3xl font-bold">Advanced Attendance System</h1>
+                        <p class="text-blue-100">Face Recognition + QR Code Scanning</p>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <div class="bg-blue-500 px-3 py-1 rounded-full text-sm">
+                            <i class="fas fa-user-clock mr-1"></i>
+                            <span id="attendance-count">0</span> records
+                        </div>
+                        <div class="bg-blue-500 px-3 py-1 rounded-full text-sm">
+                            <i class="fas fa-users mr-1"></i>
+                            <span id="registered-count">0</span> registered
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Main Content -->
+            <div class="p-6">
+                <!-- Tabs -->
+                <div class="flex border-b border-gray-200 mb-6">
+                    <button class="tab-btn py-2 px-4 font-medium text-blue-600 border-b-2 border-blue-600" data-tab="face">
+                        <i class="fas fa-user-circle mr-2"></i>Face Recognition
+                    </button>
+                    <button class="tab-btn py-2 px-4 font-medium text-gray-500 hover:text-blue-600" data-tab="qr">
+                        <i class="fas fa-qrcode mr-2"></i>QR Code
+                    </button>
+                    <button class="tab-btn py-2 px-4 font-medium text-gray-500 hover:text-blue-600" data-tab="records">
+                        <i class="fas fa-list-alt mr-2"></i>Attendance Records
+                    </button>
+                    <button class="tab-btn py-2 px-4 font-medium text-gray-500 hover:text-blue-600" data-tab="register">
+                        <i class="fas fa-user-plus mr-2"></i>Register New
+                    </button>
+                </div>
+                
+                <!-- Face Recognition Tab -->
+                <div id="face" class="tab-content active">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div>
+                            <h2 class="text-xl font-semibold mb-4">Face Recognition Attendance</h2>
+                            <p class="text-gray-600 mb-6">Position your face in the frame to mark your attendance automatically.</p>
+                            
+                            <div class="video-container mb-4">
+                                <video id="face-video" autoplay muted playsinline></video>
+                                <div id="face-overlay-container"></div>
+                            </div>
+                            
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <span id="face-status" class="px-3 py-1 rounded-full text-sm bg-gray-200 text-gray-800">
+                                        <i class="fas fa-circle-notch fa-spin mr-1"></i> Initializing...
+                                    </span>
+                                </div>
+                                <button id="face-capture-btn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg disabled:opacity-50" disabled>
+                                    <i class="fas fa-camera mr-2"></i>Capture
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <h3 class="text-lg font-semibold mb-4">Recent Attendance</h3>
+                            <div id="recent-attendance" class="space-y-3">
+                                <!-- Will be populated by JavaScript -->
+                                <div class="text-center py-8 text-gray-400">
+                                    <i class="fas fa-user-clock text-4xl mb-2"></i>
+                                    <p>No attendance records yet</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- QR Code Tab -->
+                <div id="qr" class="tab-content">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div>
+                            <h2 class="text-xl font-semibold mb-4">QR Code Attendance</h2>
+                            <p class="text-gray-600 mb-6">Scan your personal QR code to mark your attendance.</p>
+                            
+                            <div class="video-container mb-4">
+                                <video id="qr-video" autoplay muted playsinline></video>
+                                <div class="scan-animation"></div>
+                            </div>
+                            
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <span id="qr-status" class="px-3 py-1 rounded-full text-sm bg-gray-200 text-gray-800">
+                                        <i class="fas fa-circle-notch fa-spin mr-1"></i> Initializing...
+                                    </span>
+                                </div>
+                                <button id="qr-scan-btn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
+                                    <i class="fas fa-play mr-2"></i>Start Scanning
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <h3 class="text-lg font-semibold mb-4">Your QR Code</h3>
+                            <div class="bg-white p-4 rounded-lg border border-gray-200 flex flex-col items-center">
+                                <canvas id="user-qr-code" class="w-48 h-48 mb-4"></canvas>
+                                <button id="download-qr" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
+                                    <i class="fas fa-download mr-2"></i>Download QR
+                                </button>
+                            </div>
+                            <div class="mt-6">
+                                <h4 class="font-medium mb-2">How to use:</h4>
+                                <ol class="list-decimal list-inside text-gray-600 space-y-1">
+                                    <li>Download your personal QR code</li>
+                                    <li>Show it to the camera when marking attendance</li>
+                                    <li>Or print it and keep it with you</li>
+                                </ol>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Attendance Records Tab -->
+                <div id="records" class="tab-content">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-xl font-semibold">Attendance Records</h2>
+                        <div class="flex space-x-2">
+                            <div class="relative">
+                                <select id="filter-method" class="appearance-none bg-gray-100 border border-gray-300 rounded-lg px-4 py-2 pr-8 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <option value="all">All Methods</option>
+                                    <option value="face">Face Recognition</option>
+                                    <option value="qr">QR Code</option>
+                                </select>
+                                <div class="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+                                    <i class="fas fa-chevron-down text-gray-400"></i>
+                                </div>
+                            </div>
+                            <div class="relative">
+                                <input type="date" id="filter-date" class="bg-gray-100 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-gray-50 rounded-lg overflow-hidden">
+                        <div class="grid grid-cols-12 bg-gray-200 p-3 font-medium text-gray-700">
+                            <div class="col-span-3">Name</div>
+                            <div class="col-span-2">ID</div>
+                            <div class="col-span-2">Time</div>
+                            <div class="col-span-2">Method</div>
+                            <div class="col-span-2">Status</div>
+                            <div class="col-span-1">Action</div>
+                        </div>
+                        
+                        <div id="attendance-list" class="divide-y divide-gray-200">
+                            <!-- Will be populated by JavaScript -->
+                            <div class="text-center py-8 text-gray-400">
+                                <i class="fas fa-clipboard-list text-4xl mb-2"></i>
+                                <p>No attendance records yet</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4 flex justify-between items-center">
+                        <div class="text-sm text-gray-500">
+                            Showing <span id="records-start">0</span>-<span id="records-end">0</span> of <span id="records-total">0</span>
+                        </div>
+                        <div class="flex space-x-2">
+                            <button id="prev-page" class="px-3 py-1 border rounded-lg disabled:opacity-50" disabled>
+                                <i class="fas fa-chevron-left"></i>
+                            </button>
+                            <button id="next-page" class="px-3 py-1 border rounded-lg disabled:opacity-50" disabled>
+                                <i class="fas fa-chevron-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Register New Tab -->
+                <div id="register" class="tab-content">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div>
+                            <h2 class="text-xl font-semibold mb-6">Register New User</h2>
+                            
+                            <form id="registration-form" class="space-y-4">
+                                <div>
+                                    <label for="full-name" class="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                                    <input type="text" id="full-name" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" required>
+                                </div>
+                                
+                                <div>
+                                    <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                                    <input type="email" id="email" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" required>
+                                </div>
+                                
+                                <div>
+                                    <label for="id-number" class="block text-sm font-medium text-gray-700 mb-1">ID Number</label>
+                                    <input type="text" id="id-number" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" required>
+                                </div>
+                                
+                                <div>
+                                    <label for="department" class="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                                    <select id="department" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                        <option value="IT">Information Technology</option>
+                                        <option value="HR">Human Resources</option>
+                                        <option value="Finance">Finance</option>
+                                        <option value="Operations">Operations</option>
+                                        <option value="Marketing">Marketing</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="pt-2">
+                                    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
+                                        <i class="fas fa-user-plus mr-2"></i>Register User
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                        
+                        <div>
+                            <h3 class="text-lg font-semibold mb-4">Capture Face Data</h3>
+                            <p class="text-gray-600 mb-6">We need multiple angles of your face for accurate recognition.</p>
+                            
+                            <div class="video-container mb-4">
+                                <video id="register-video" autoplay muted playsinline></video>
+                                <div id="register-overlay-container"></div>
+                            </div>
+                            
+                            <div class="flex justify-between items-center mb-6">
+                                <div>
+                                    <span id="register-status" class="px-3 py-1 rounded-full text-sm bg-gray-200 text-gray-800">
+                                        <i class="fas fa-circle-notch fa-spin mr-1"></i> Initializing...
+                                    </span>
+                                </div>
+                                <div>
+                                    <span class="text-sm font-medium">
+                                        Samples captured: <span id="samples-count" class="font-bold">0</span>/5
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <div class="grid grid-cols-5 gap-2 mb-6" id="sample-previews">
+                                <!-- Will be populated with captured samples -->
+                            </div>
+                            
+                            <button id="capture-sample" class="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg disabled:opacity-50" disabled>
+                                <i class="fas fa-camera mr-2"></i>Capture Sample
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div id="success-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-xl p-6 max-w-md w-full mx-4">
+            <div class="text-center">
+                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
+                    <i class="fas fa-check text-green-600 text-xl"></i>
+                </div>
+                <h3 class="text-lg font-medium text-gray-900 mb-2" id="success-title">Success</h3>
+                <p class="text-gray-500 mb-6" id="success-message">Operation completed successfully</p>
+                <button id="success-close" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error Modal -->
+    <div id="error-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-xl p-6 max-w-md w-full mx-4">
+            <div class="text-center">
+                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+                    <i class="fas fa-times text-red-600 text-xl"></i>
+                </div>
+                <h3 class="text-lg font-medium text-gray-900 mb-2" id="error-title">Error</h3>
+                <p class="text-gray-500 mb-6" id="error-message">An error occurred</p>
+                <button id="error-close" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Mock database for demonstration
+        const mockDatabase = {
+            users: [],
+            attendance: [],
+            currentUser: null,
+            
+            // Initialize with some demo data
+            init: function() {
+                if(localStorage.getItem('attendanceSystem')) {
+                    const data = JSON.parse(localStorage.getItem('attendanceSystem'));
+                    this.users = data.users || [];
+                    this.attendance = data.attendance || [];
+                } else {
+                    // Default admin user
+                    this.users.push({
+                        id: 'ADMIN001',
+                        name: 'Admin User',
+                        email: 'admin@example.com',
+                        department: 'IT',
+                        faceData: [],
+                        qrCode: 'ADMIN001',
+                        registeredAt: new Date().toISOString()
+                    });
+                    
+                    this.save();
+                }
+                
+                // Set current user (in a real app, this would be after login)
+                this.currentUser = this.users[0];
+            },
+            
+            // Save to localStorage
+            save: function() {
+                localStorage.setItem('attendanceSystem', JSON.stringify({
+                    users: this.users,
+                    attendance: this.attendance
+                }));
+            },
+            
+            // Register new user
+            registerUser: function(userData) {
+                const newUser = {
+                    id: userData.idNumber,
+                    name: userData.fullName,
+                    email: userData.email,
+                    department: userData.department,
+                    faceData: userData.faceData || [],
+                    qrCode: userData.idNumber, // Using ID as QR code data for simplicity
+                    registeredAt: new Date().toISOString()
+                };
+                
+                this.users.push(newUser);
+                this.save();
+                return newUser;
+            },
+            
+            // Mark attendance
+            markAttendance: function(userId, method) {
+                const user = this.users.find(u => u.id === userId);
+                if(!user) return null;
+                
+                const record = {
+                    userId: user.id,
+                    userName: user.name,
+                    time: new Date().toISOString(),
+                    method: method,
+                    status: 'Present'
+                };
+                
+                this.attendance.unshift(record); // Add to beginning of array
+                this.save();
+                return record;
+            },
+            
+            // Get attendance records
+            getAttendance: function(page = 1, pageSize = 10, filterMethod = 'all', filterDate = null) {
+                let filtered = [...this.attendance];
+                
+                if(filterMethod !== 'all') {
+                    filtered = filtered.filter(r => r.method === filterMethod);
+                }
+                
+                if(filterDate) {
+                    const filterDateStr = new Date(filterDate).toDateString();
+                    filtered = filtered.filter(r => {
+                        const recordDate = new Date(r.time).toDateString();
+                        return recordDate === filterDateStr;
+                    });
+                }
+                
+                const start = (page - 1) * pageSize;
+                const end = start + pageSize;
+                const paginated = filtered.slice(start, end);
+                
+                return {
+                    records: paginated,
+                    total: filtered.length,
+                    page,
+                    pageSize,
+                    totalPages: Math.ceil(filtered.length / pageSize)
+                };
+            }
+        };
+        
+        // Initialize the database
+        mockDatabase.init();
+        
+        // DOM Elements
+        const tabButtons = document.querySelectorAll('.tab-btn');
+        const tabContents = document.querySelectorAll('.tab-content');
+        
+        const faceVideo = document.getElementById('face-video');
+        const faceOverlayContainer = document.getElementById('face-overlay-container');
+        const faceStatus = document.getElementById('face-status');
+        const faceCaptureBtn = document.getElementById('face-capture-btn');
+        const recentAttendance = document.getElementById('recent-attendance');
+        
+        const qrVideo = document.getElementById('qr-video');
+        const qrStatus = document.getElementById('qr-status');
+        const qrScanBtn = document.getElementById('qr-scan-btn');
+        const userQrCode = document.getElementById('user-qr-code');
+        const downloadQr = document.getElementById('download-qr');
+        
+        const attendanceList = document.getElementById('attendance-list');
+        const filterMethod = document.getElementById('filter-method');
+        const filterDate = document.getElementById('filter-date');
+        const prevPage = document.getElementById('prev-page');
+        const nextPage = document.getElementById('next-page');
+        const recordsStart = document.getElementById('records-start');
+        const recordsEnd = document.getElementById('records-end');
+        const recordsTotal = document.getElementById('records-total');
+        
+        const registrationForm = document.getElementById('registration-form');
+        const registerVideo = document.getElementById('register-video');
+        const registerOverlayContainer = document.getElementById('register-overlay-container');
+        const registerStatus = document.getElementById('register-status');
+        const samplesCount = document.getElementById('samples-count');
+        const samplePreviews = document.getElementById('sample-previews');
+        const captureSample = document.getElementById('capture-sample');
+        
+        const successModal = document.getElementById('success-modal');
+        const successTitle = document.getElementById('success-title');
+        const successMessage = document.getElementById('success-message');
+        const successClose = document.getElementById('success-close');
+        
+        const errorModal = document.getElementById('error-modal');
+        const errorTitle = document.getElementById('error-title');
+        const errorMessage = document.getElementById('error-message');
+        const errorClose = document.getElementById('error-close');
+        
+        const attendanceCount = document.getElementById('attendance-count');
+        const registeredCount = document.getElementById('registered-count');
+        
+        // Tab switching
+        tabButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const tabId = button.getAttribute('data-tab');
+                
+                // Update active tab button
+                tabButtons.forEach(btn => {
+                    btn.classList.remove('text-blue-600', 'border-blue-600');
+                    btn.classList.add('text-gray-500', 'hover:text-blue-600');
+                });
+                button.classList.add('text-blue-600', 'border-blue-600');
+                button.classList.remove('text-gray-500', 'hover:text-blue-600');
+                
+                // Update active tab content
+                tabContents.forEach(content => {
+                    content.classList.remove('active');
+                });
+                document.getElementById(tabId).classList.add('active');
+                
+                // Handle specific tab activations
+                if(tabId === 'qr') {
+                    generateQRCode();
+                } else if(tabId === 'records') {
+                    loadAttendanceRecords();
+                }
+            });
+        });
+        
+        // Modal controls
+        successClose.addEventListener('click', () => {
+            successModal.classList.add('hidden');
+        });
+        
+        errorClose.addEventListener('click', () => {
+            errorModal.classList.add('hidden');
+        });
+        
+        // Show success modal
+        function showSuccess(title, message) {
+            successTitle.textContent = title;
+            successMessage.textContent = message;
+            successModal.classList.remove('hidden');
+        }
+        
+        // Show error modal
+        function showError(title, message) {
+            errorTitle.textContent = title;
+            errorMessage.textContent = message;
+            errorModal.classList.remove('hidden');
+        }
+        
+        // Update counters
+        function updateCounters() {
+            attendanceCount.textContent = mockDatabase.attendance.length;
+            registeredCount.textContent = mockDatabase.users.length;
+        }
+        
+        // Initialize the page
+        updateCounters();
+        
+        // Face Recognition Attendance
+        let faceStream = null;
+        let faceDetectionInterval = null;
+        
+        // Start face recognition camera
+        async function startFaceRecognition() {
+            try {
+                faceStatus.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-1"></i> Starting camera...';
+                
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: 640, 
+                        height: 480,
+                        facingMode: 'user' 
+                    },
+                    audio: false
+                });
+                
+                faceStream = stream;
+                faceVideo.srcObject = stream;
+                
+                faceStatus.innerHTML = '<i class="fas fa-check-circle mr-1"></i> Camera ready';
+                faceCaptureBtn.disabled = false;
+                
+                // For demo purposes, we'll simulate face detection
+                simulateFaceDetection();
+                
+            } catch (err) {
+                console.error('Error accessing camera:', err);
+                faceStatus.innerHTML = '<i class="fas fa-exclamation-circle mr-1"></i> Camera access denied';
+                showError('Camera Error', 'Could not access the camera. Please ensure you have granted camera permissions.');
+            }
+        }
+        
+        // Simulate face detection (in a real app, you'd use a face detection library)
+        function simulateFaceDetection() {
+            if(faceDetectionInterval) clearInterval(faceDetectionInterval);
+            
+            faceDetectionInterval = setInterval(() => {
+                // Clear previous overlays
+                faceOverlayContainer.innerHTML = '';
+                
+                // Create a random face overlay for demo purposes
+                const overlay = document.createElement('div');
+                overlay.className = 'face-overlay';
+                
+                // Random position and size
+                const width = 150 + Math.random() * 50;
+                const height = 200 + Math.random() * 50;
+                const left = 50 + Math.random() * 200;
+                const top = 50 + Math.random() * 100;
+                
+                overlay.style.width = `${width}px`;
+                overlay.style.height = `${height}px`;
+                overlay.style.left = `${left}px`;
+                overlay.style.top = `${top}px`;
+                
+                faceOverlayContainer.appendChild(overlay);
+            }, 2000);
+        }
+        
+        // Capture face for attendance
+        faceCaptureBtn.addEventListener('click', () => {
+            // In a real app, you would:
+            // 1. Capture the face image
+            // 2. Compare with registered faces
+            // 3. Identify the user
+            // 4. Mark attendance
+            
+            // For demo, we'll use the current user
+            const record = mockDatabase.markAttendance(mockDatabase.currentUser.id, 'face');
+            
+            if(record) {
+                addRecentAttendance(record);
+                updateCounters();
+                showSuccess('Attendance Marked', `Attendance recorded for ${record.userName}`);
+            } else {
+                showError('Attendance Failed', 'Could not recognize face. Please try again or use QR code.');
+            }
+        });
+        
+        // Add recent attendance record to the list
+        function addRecentAttendance(record) {
+            const now = new Date();
+            const recordTime = new Date(record.time);
+            const timeDiff = Math.floor((now - recordTime) / 1000); // in seconds
+            
+            let timeText;
+            if(timeDiff < 60) {
+                timeText = `${timeDiff} seconds ago`;
+            } else if(timeDiff < 3600) {
+                const mins = Math.floor(timeDiff / 60);
+                timeText = `${mins} minute${mins !== 1 ? 's' : ''} ago`;
+            } else {
+                timeText = recordTime.toLocaleTimeString();
+            }
+            
+            const recordEl = document.createElement('div');
+            recordEl.className = 'attendance-record bg-gray-50 p-4 rounded-lg flex items-center';
+            recordEl.innerHTML = `
+                <div class="flex-shrink-0 bg-blue-100 text-blue-600 w-10 h-10 rounded-full flex items-center justify-center mr-4">
+                    <i class="fas fa-user"></i>
+                </div>
+                <div class="flex-grow">
+                    <h4 class="font-medium">${record.userName}</h4>
+                    <p class="text-sm text-gray-500">${timeText} via ${record.method}</p>
+                </div>
+                <div class="flex-shrink-0 text-green-600">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+            `;
+            
+            // If no records placeholder exists, remove it
+            if(recentAttendance.querySelector('.text-center')) {
+                recentAttendance.innerHTML = '';
+            }
+            
+            recentAttendance.prepend(recordEl);
+        }
+        
+        // QR Code Attendance
+        let qrStream = null;
+        let qrScanning = false;
+        let qrCanvas = null;
+        let qrContext = null;
+        
+        // Start QR code scanning
+        qrScanBtn.addEventListener('click', async function() {
+            if(qrScanning) {
+                stopQRScanning();
+                return;
+            }
+            
+            try {
+                qrStatus.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-1"></i> Starting camera...';
+                
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: 640, 
+                        height: 480,
+                        facingMode: 'environment' 
+                    },
+                    audio: false
+                });
+                
+                qrStream = stream;
+                qrVideo.srcObject = stream;
+                qrScanning = true;
+                
+                qrStatus.innerHTML = '<i class="fas fa-qrcode mr-1"></i> Scanning...';
+                qrScanBtn.innerHTML = '<i class="fas fa-stop mr-2"></i>Stop Scanning';
+                
+                // Setup canvas for QR code detection
+                qrCanvas = document.createElement('canvas');
+                qrCanvas.width = 640;
+                qrCanvas.height = 480;
+                qrContext = qrCanvas.getContext('2d');
+                
+                // Start scanning loop
+                scanQRCode();
+                
+            } catch (err) {
+                console.error('Error accessing camera:', err);
+                qrStatus.innerHTML = '<i class="fas fa-exclamation-circle mr-1"></i> Camera access denied';
+                showError('Camera Error', 'Could not access the camera. Please ensure you have granted camera permissions.');
+            }
+        });
+        
+        // Stop QR code scanning
+        function stopQRScanning() {
+            if(qrStream) {
+                qrStream.getTracks().forEach(track => track.stop());
+                qrStream = null;
+            }
+            
+            qrScanning = false;
+            qrStatus.innerHTML = '<i class="fas fa-qrcode mr-1"></i> Ready to scan';
+            qrScanBtn.innerHTML = '<i class="fas fa-play mr-2"></i>Start Scanning';
+        }
+        
+        // Scan for QR codes
+        function scanQRCode() {
+            if(!qrScanning) return;
+            
+            if(qrVideo.readyState === qrVideo.HAVE_ENOUGH_DATA) {
+                qrCanvas.width = qrVideo.videoWidth;
+                qrCanvas.height = qrVideo.videoHeight;
+                qrContext.drawImage(qrVideo, 0, 0, qrCanvas.width, qrCanvas.height);
+                
+                const imageData = qrContext.getImageData(0, 0, qrCanvas.width, qrCanvas.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                    inversionAttempts: 'dontInvert',
+                });
+                
+                if(code) {
+                    // Found a QR code
+                    const user = mockDatabase.users.find(u => u.id === code.data);
+                    
+                    if(user) {
+                        const record = mockDatabase.markAttendance(user.id, 'qr');
+                        
+                        if(record) {
+                            stopQRScanning();
+                            addRecentAttendance(record);
+                            updateCounters();
+                            showSuccess('Attendance Marked', `Attendance recorded for ${record.userName}`);
+                        }
+                    } else {
+                        showError('Invalid QR Code', 'The scanned QR code is not registered in the system.');
+                    }
+                }
+            }
+            
+            if(qrScanning) {
+                requestAnimationFrame(scanQRCode);
+            }
+        }
+        
+        // Generate QR code for current user
+        function generateQRCode() {
+            const canvas = userQrCode;
+            const text = mockDatabase.currentUser.id; // Using user ID as QR data
+            
+            // Clear previous QR code
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Generate QR code
+            const qr = jsQR(text, canvas.width, canvas.height);
+            
+            if(qr) {
+                // Draw QR code
+                const imageData = ctx.createImageData(qr.size, qr.size);
+                imageData.data.set(qr.binaryData);
+                ctx.putImageData(imageData, 0, 0);
+            }
+        }
+        
+        // Download QR code
+        downloadQr.addEventListener('click', () => {
+            const link = document.createElement('a');
+            link.download = `${mockDatabase.currentUser.name.replace(/\s+/g, '_')}_QRCode.png`;
+            link.href = userQrCode.toDataURL('image/png');
+            link.click();
+        });
+        
+        // Attendance Records
+        let currentPage = 1;
+        const pageSize = 10;
+        
+        // Load attendance records
+        function loadAttendanceRecords() {
+            const method = filterMethod.value;
+            const date = filterDate.value || null;
+            
+            const data = mockDatabase.getAttendance(currentPage, pageSize, method, date);
+            
+            // Update pagination info
+            recordsStart.textContent = data.total === 0 ? 0 : ((currentPage - 1) * pageSize) + 1;
+            recordsEnd.textContent = Math.min(currentPage * pageSize, data.total);
+            recordsTotal.textContent = data.total;
+            
+            prevPage.disabled = currentPage === 1;
+            nextPage.disabled = currentPage === data.totalPages || data.totalPages === 0;
+            
+            // Clear existing records
+            attendanceList.innerHTML = '';
+            
+            if(data.records.length === 0) {
+                attendanceList.innerHTML = `
+                    <div class="text-center py-8 text-gray-400">
+                        <i class="fas fa-clipboard-list text-4xl mb-2"></i>
+                        <p>No attendance records found</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Add records to the list
+            data.records.forEach(record => {
+                const recordTime = new Date(record.time);
+                
+                const recordEl = document.createElement('div');
+                recordEl.className = 'grid grid-cols-12 p-3 items-center hover:bg-gray-50';
+                recordEl.innerHTML = `
+                    <div class="col-span-3 font-medium">${record.userName}</div>
+                    <div class="col-span-2 text-gray-500">${record.userId}</div>
+                    <div class="col-span-2">${recordTime.toLocaleTimeString()}</div>
+                    <div class="col-span-2">
+                        <span class="px-2 py-1 rounded-full text-xs ${
+                            record.method === 'face' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
+                        }">
+                            ${record.method === 'face' ? 'Face' : 'QR Code'}
+                        </span>
+                    </div>
+                    <div class="col-span-2">
+                        <span class="px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
+                            ${record.status}
+                        </span>
+                    </div>
+                    <div class="col-span-1 text-right">
+                        <button class="text-blue-600 hover:text-blue-800">
+                            <i class="fas fa-ellipsis-v"></i>
+                        </button>
+                    </div>
+                `;
+                
+                attendanceList.appendChild(recordEl);
+            });
+        }
+        
+        // Pagination controls
+        prevPage.addEventListener('click', () => {
+            if(currentPage > 1) {
+                currentPage--;
+                loadAttendanceRecords();
+            }
+        });
+        
+        nextPage.addEventListener('click', () => {
+            const method = filterMethod.value;
+            const date = filterDate.value || null;
+            const data = mockDatabase.getAttendance(currentPage + 1, pageSize, method, date);
+            
+            if(data.records.length > 0) {
+                currentPage++;
+                loadAttendanceRecords();
+            }
+        });
+        
+        // Filter controls
+        filterMethod.addEventListener('change', () => {
+            currentPage = 1;
+            loadAttendanceRecords();
+        });
+        
+        filterDate.addEventListener('change', () => {
+            currentPage = 1;
+            loadAttendanceRecords();
+        });
+        
+        // User Registration
+        let registerStream = null;
+        let faceSamples = [];
+        
+        // Start registration camera
+        async function startRegistrationCamera() {
+            try {
+                registerStatus.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-1"></i> Starting camera...';
+                
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: 640, 
+                        height: 480,
+                        facingMode: 'user' 
+                    },
+                    audio: false
+                });
+                
+                registerStream = stream;
+                registerVideo.srcObject = stream;
+                
+                registerStatus.innerHTML = '<i class="fas fa-check-circle mr-1"></i> Camera ready';
+                captureSample.disabled = false;
+                
+                // For demo purposes, simulate face detection
+                simulateRegistrationFaceDetection();
+                
+            } catch (err) {
+                console.error('Error accessing camera:', err);
+                registerStatus.innerHTML = '<i class="fas fa-exclamation-circle mr-1"></i> Camera access denied';
+                showError('Camera Error', 'Could not access the camera. Please ensure you have granted camera permissions.');
+            }
+        }
+        
+        // Simulate face detection for registration
+        function simulateRegistrationFaceDetection() {
+            // Similar to the face recognition tab, but we'll skip the actual implementation
+            // In a real app, you would use a face detection library to capture multiple samples
+        }
+        
+        // Capture face sample
+        captureSample.addEventListener('click', () => {
+            // In a real app, you would:
+            // 1. Capture the face image
+            // 2. Extract face features
+            // 3. Store as a sample
+            
+            // For demo, we'll just add a placeholder
+            if(faceSamples.length >= 5) return;
+            
+            faceSamples.push(`sample_${faceSamples.length + 1}`);
+            samplesCount.textContent = faceSamples.length;
+            
+            // Add sample preview
+            const sampleEl = document.createElement('div');
+            sampleEl.className = 'bg-gray-200 rounded overflow-hidden';
+            sampleEl.innerHTML = `
+                <div class="relative pt-[100%]">
+                    <div class="absolute inset-0 flex items-center justify-center text-gray-400">
+                        <i class="fas fa-user text-2xl"></i>
+                    </div>
+                    <button class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            `;
+            
+            // Add delete button functionality
+            const deleteBtn = sampleEl.querySelector('button');
+            deleteBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const index = Array.from(samplePreviews.children).indexOf(sampleEl);
+                faceSamples.splice(index, 1);
+                sampleEl.remove();
+                samplesCount.textContent = faceSamples.length;
+            });
+            
+            samplePreviews.appendChild(sampleEl);
+            
+            if(faceSamples.length >= 5) {
+                captureSample.disabled = true;
+                captureSample.textContent = 'Samples captured';
+            }
+        });
+        
+        // Register new user
+        registrationForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            if(faceSamples.length < 3) {
+                showError('Incomplete Registration', 'Please capture at least 3 face samples for accurate recognition.');
+                return;
+            }
+            
+            const userData = {
+                fullName: document.getElementById('full-name').value,
+                email: document.getElementById('email').value,
+                idNumber: document.getElementById('id-number').value,
+                department: document.getElementById('department').value,
+                faceData: faceSamples // In a real app, this would be face feature vectors
+            };
+            
+            const newUser = mockDatabase.registerUser(userData);
+            
+            if(newUser) {
+                // Reset form
+                registrationForm.reset();
+                faceSamples = [];
+                samplesCount.textContent = '0';
+                samplePreviews.innerHTML = '';
+                captureSample.disabled = true;
+                captureSample.innerHTML = '<i class="fas fa-camera mr-2"></i>Capture Sample';
+                
+                updateCounters();
+                showSuccess('Registration Complete', `${newUser.name} has been successfully registered.`);
+                
+                // Switch to QR tab to show their new QR code
+                document.querySelector('[data-tab="qr"]').click();
+                generateQRCode();
+            } else {
+                showError('Registration Failed', 'Could not register the user. Please try again.');
+            }
+        });
+        
+        // Initialize cameras when their tabs are activated
+        document.querySelector('[data-tab="face"]').addEventListener('click', () => {
+            if(!faceStream) {
+                startFaceRecognition();
+            }
+        });
+        
+        document.querySelector('[data-tab="register"]').addEventListener('click', () => {
+            if(!registerStream) {
+                startRegistrationCamera();
+            }
+        });
+        
+        // Clean up when leaving the page
+        window.addEventListener('beforeunload', () => {
+            if(faceStream) {
+                faceStream.getTracks().forEach(track => track.stop());
+            }
+            
+            if(qrStream) {
+                qrStream.getTracks().forEach(track => track.stop());
+            }
+            
+            if(registerStream) {
+                registerStream.getTracks().forEach(track => track.stop());
+            }
+            
+            if(faceDetectionInterval) {
+                clearInterval(faceDetectionInterval);
+            }
+        });
+    </script>
+</body>
+</html>
