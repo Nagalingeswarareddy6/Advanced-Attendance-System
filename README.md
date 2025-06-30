@@ -60,7 +60,7 @@ Multiple angle requirements for better recognition
 
 **Technical Implementation**
 
-**Frontend**
+1.**Frontend**
 
 Built with HTML5, CSS3, and JavaScript
 
@@ -70,7 +70,7 @@ Font Awesome for icons
 
 jsQR library for QR code scanning/generation
 
-**Data Management**
+2.**Data Management**
 
 Uses localStorage for data persistence (simulates database in demo)
 
@@ -82,7 +82,7 @@ Attendance recording
 
 Data filtering
 
-**Setup Instructions**
+3.**Setup Instructions**
 
 Clone the repository or download the files
 
